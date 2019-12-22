@@ -56,7 +56,10 @@ func wrapClass(name string, cmap map[string]*classfile.ClassFile) *ClassInfo {
 	inames := cf.InterfaceNames()
 	if inames != nil {
 		for _, name := range inames {
-			interfaces = append(interfaces, wrapClass(name, cmap))
+			class := wrapClass(name, cmap)
+			if class != nil {
+				interfaces = append(interfaces, class)
+			}
 		}
 	}
 

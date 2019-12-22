@@ -3,30 +3,76 @@ package main
 import (
 	"fmt"
 	"github.com/zavier/jclass-relation/parse"
+	"io/ioutil"
+	"log"
 	"strings"
 )
 
 func main() {
+	// 这里需要使用者修改成自己要使用的classpath
 	cp := getClassPath()
+	// 这里需要指定要查找的类（全称）
 	relation := parse.CalcRelation(cp, "org.springframework.beans.factory.support.DefaultListableBeanFactory")
-	printClassInfo(relation)
+	print2Graphviz(relation)
 }
 
-func printClassInfo(cinfo *parse.ClassInfo) {
+// todo 之后可以使用接口，实现不同方式的输出
+func print2Graphviz(cinfo *parse.ClassInfo) {
 	if cinfo == nil {
+		log.Println("no find relation")
 		return
+	}
+	// 去重使用
+	strSet := make(map[string]interface{})
+
+	graphviz := "digraph classRelation {\n"
+	str := doPrint2Graphviz(cinfo)
+	for _, v := range str {
+		_, ok := strSet[v]
+		if ok {
+			continue
+		}
+		strSet[v] = nil
+		graphviz += v + ";\n"
+	}
+	graphviz += "}\n"
+	// 按照graphviz，  mac: brew install graphviz
+	// 生成dot文件后， 执行： dot -Tpng classRelation.dot -o classRelation.png
+	_ = ioutil.WriteFile("classRelation.dot", []byte(graphviz), 777)
+}
+
+// 输出关系
+func doPrint2Graphviz(cinfo *parse.ClassInfo) []string {
+	if cinfo == nil {
+		return nil
 	}
 	cinfo.AddLevel()
 
-	level := cinfo.Level
-	for i := 1; i < level; i++ {
-		fmt.Print("\t")
+	str := make([]string, 0)
+	name := simpleName(cinfo.ClassName)
+	parentClass := cinfo.ParentClass
+	if parentClass != nil {
+		str = append(str, name+"->"+simpleName(parentClass.ClassName))
 	}
-	fmt.Println(simpleName(cinfo.ClassName))
-	printClassInfo(cinfo.ParentClass)
-	for _, i := range cinfo.Interfaces {
-		printClassInfo(i)
+	infos := cinfo.Interfaces
+	if infos != nil && len(infos) > 0 {
+		for _, i := range infos {
+			str = append(str, name+"->"+simpleName(i.ClassName))
+		}
 	}
+
+	// 继续输出
+	graphviz := doPrint2Graphviz(parentClass)
+	if graphviz != nil && len(graphviz) > 0 {
+		str = append(str, graphviz...)
+	}
+	for _, i := range infos {
+		i2 := doPrint2Graphviz(i)
+		if i2 != nil && len(i2) > 0 {
+			str = append(str, i2...)
+		}
+	}
+	return str
 }
 
 func simpleName(className string) string {
